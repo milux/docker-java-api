@@ -24,8 +24,8 @@ import static org.mockito.Mockito.when;
  */
 public class RtVersionTestCase {
     /**
-     * Must return the same number of images as there are elements in the
-     * json array returned by the service.
+     * Checks version API against provided version information
+     * from version.json in resources.
      * @throws IOException On I/O error.
      */
     @Test
