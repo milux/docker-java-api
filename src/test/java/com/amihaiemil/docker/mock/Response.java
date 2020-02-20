@@ -27,6 +27,7 @@ package com.amihaiemil.docker.mock;
 
 import com.sun.grizzly.util.Charsets;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.Date;
@@ -41,6 +42,7 @@ import org.apache.http.HttpStatus;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.ContentType;
+import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicResponseHandler;
 import org.apache.http.message.BasicHttpResponse;
@@ -63,9 +65,7 @@ public final class Response implements HttpResponse {
     private HttpResponse backbone;
     
     /**
-     * Ctor.
-     * <p>
-     * Response with no payload.
+     * Ctor for Response with empty JSON object payload.
      * @param status The {@link HttpStatus http status code}
      */
     public Response(final int status) {
@@ -73,27 +73,54 @@ public final class Response implements HttpResponse {
     }
 
     /**
-     * Ctor.
-     *
+     * Ctor for Response with JSON payload provided as UTF-8 String.
      * @param status The {@link HttpStatus http status code}
      * @param jsonPayload The json payload
      */
     public Response(final int status, final String jsonPayload) {
+        this(
+            status,
+            new StringEntity(
+                jsonPayload, ContentType.APPLICATION_JSON
+            )
+        );
+        this.backbone.setHeader(
+            "Content-Length", String.valueOf(jsonPayload.getBytes().length)
+        );
+    }
+
+    /**
+     * Ctor for Response with JSON payload provided by an InputStream.
+     * @param status The {@link HttpStatus http status code}
+     * @param jsonInputStream The InputStream for an InputStreamEntity,
+     *                        must provide JSON
+     */
+    public Response(
+        final int status, final InputStream jsonInputStream) {
+        this(
+            status,
+            new InputStreamEntity(
+                jsonInputStream, ContentType.APPLICATION_JSON
+            )
+        );
+    }
+
+    /**
+     * Ctor for Response with JSON payload provided by an HttpEntity.
+     * @param status The {@link HttpStatus http status code}
+     * @param httpEntity The entity to use for this Response
+     */
+    public Response(final int status, final HttpEntity httpEntity) {
         this.backbone = new BasicHttpResponse(
             new BasicStatusLine(
                 new ProtocolVersion("HTTP", 1, 1), status, "REASON"
             )
         );
-        this.backbone.setEntity(
-            new StringEntity(
-                jsonPayload, ContentType.APPLICATION_JSON
-            )
-        );
+        this.backbone.setEntity(httpEntity);
         this.backbone.setHeader("Date", new Date().toString());
         this.backbone.setHeader(
-            "Content-Length", String.valueOf(jsonPayload.getBytes().length)
-        );
-        this.backbone.setHeader("Content-Type", "application/json");
+            "Content-Type",
+            httpEntity.getContentType().getValue());
     }
 
     @Override
@@ -133,9 +160,13 @@ public final class Response implements HttpResponse {
         return this.backbone.getEntity();
     }
 
+    /**
+     * Sets the encapsulated entity of this Response.
+     * @param entity The entity to use for this Response
+     */
     @Override
     public void setEntity(final HttpEntity entity) {
-        throw new UnsupportedOperationException("Not supported yet.");
+        this.backbone.setEntity(entity);
     }
 
     @Override
@@ -223,11 +254,21 @@ public final class Response implements HttpResponse {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 
+    /**
+     * Deprecated method.
+     * @deprecated
+     * @return HttpParams
+     */
     @Override
     public HttpParams getParams() {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 
+    /**
+     * Deprecated method.
+     * @deprecated
+     * @param params HttpParams
+     */
     @Override
     public void setParams(final HttpParams params) {
         throw new UnsupportedOperationException("Not supported yet.");
@@ -247,29 +288,23 @@ public final class Response implements HttpResponse {
     }
 
     /**
-     * This response as a string.
+     * This Response as a string.
      * @return String representation of this {@link Response}.
      */
     @Override
     public String toString() {
         final String CRLF = "" + (char) 0x0D + (char) 0x0A;
         try {
-            final StringBuilder builder = new StringBuilder()
-                .append(this.backbone.getStatusLine().toString())
-                .append(CRLF)    
-                .append(
-                   Stream.of(
-                        this.backbone.getAllHeaders()
-                    ).map(header -> header.toString())
-                    .collect(Collectors.joining(CRLF))
-                )
-                .append(CRLF).append(CRLF)
-                .append(
-                    new BasicResponseHandler().handleEntity(
-                        this.backbone.getEntity()
-                    )
-                );
-            return builder.toString();
+            return this.backbone.getStatusLine().toString()
+                + CRLF
+                + Stream.of(
+                this.backbone.getAllHeaders()
+            ).map(Object::toString)
+                .collect(Collectors.joining(CRLF))
+                + CRLF + CRLF
+                + new BasicResponseHandler().handleEntity(
+                this.backbone.getEntity()
+            );
         } catch (final IOException ex) {
             throw new IllegalStateException(
                 "IOException when reading the HTTP response. " + ex

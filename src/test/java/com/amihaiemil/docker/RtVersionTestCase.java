@@ -1,21 +1,15 @@
 package com.amihaiemil.docker;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
+import com.amihaiemil.docker.mock.AssertRequest;
+import com.amihaiemil.docker.mock.Condition;
+import com.amihaiemil.docker.mock.Response;
 import org.apache.http.HttpStatus;
-import org.apache.http.StatusLine;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.ResponseHandler;
-import org.apache.http.client.methods.HttpGet;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link RtVersion}.
@@ -24,28 +18,25 @@ import static org.mockito.Mockito.when;
  */
 public class RtVersionTestCase {
     /**
-     * Must return the same number of images as there are elements in the
-     * json array returned by the service.
+     * Queries the version API and all Version getters.
      * @throws IOException On I/O error.
      */
     @Test
-    public final void queryDockerVersion() throws IOException {
-        HttpClient client = mock(HttpClient.class);
-        when(client.execute(any(HttpGet.class), any(ResponseHandler.class)))
-            .thenAnswer(invocation -> {
-                HttpResponse response = mock(HttpResponse.class);
-                HttpEntity entity = mock(HttpEntity.class);
-                when(response.getEntity()).thenReturn(entity);
-                when(entity.getContent()).thenReturn(
+    public final void testDockerVersion() throws IOException {
+        Docker docker = new LocalDocker(
+            new AssertRequest(
+                new Response(
+                    HttpStatus.SC_OK,
                     getClass().getClassLoader()
-                        .getResourceAsStream("version.json"));
-                StatusLine statusLine = mock(StatusLine.class);
-                when(response.getStatusLine()).thenReturn(statusLine);
-                when(statusLine.getStatusCode()).thenReturn(HttpStatus.SC_OK);
-                return ((ReadJsonObject) invocation.getArguments()[1])
-                    .handleResponse(response);
-            });
-        Docker docker = new LocalDocker(client, "v1.35");
+                        .getResourceAsStream("version.json")
+                ),
+                new Condition(
+                    "URI path must end with '/version'",
+                    req -> req.getRequestLine().getUri().endsWith("/version")
+                )
+            ),
+            "v1.35"
+        );
         Version version = docker.version();
         assertEquals("19.03.3", version.version());
         assertEquals("Docker Engine - Community", version.platformName());
